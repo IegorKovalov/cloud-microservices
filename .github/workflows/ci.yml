@@ -1,0 +1,71 @@
+# Continuous Integration for cloud-microservices.
+#
+# Runs on every push to main and every pull request. Two parallel jobs:
+#   1. python-tests : install dev deps, run unit tests + compile check.
+#   2. cpp-build    : configure + build the cpp-worker with -Werror so
+#                     any C++ regression breaks the build immediately.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python-tests:
+    name: Python unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install dev dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Compile check (every Python module parses)
+        run: make lint
+
+      - name: Run unit tests
+        run: make test-unit
+
+  cpp-build:
+    name: C++ build (cpp-worker)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install build toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            cmake \
+            ca-certificates
+
+      - name: Configure
+        working-directory: services/cpp-worker
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build (-Wall -Wextra -Werror)
+        working-directory: services/cpp-worker
+        run: cmake --build build --parallel

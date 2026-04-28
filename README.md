@@ -1,5 +1,10 @@
 # Cloud Microservices Architecture & Integration Framework
 
+[![CI](https://github.com/IegorKovalov/cloud-microservices/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/IegorKovalov/cloud-microservices/actions/workflows/ci.yml)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
+[![C++17](https://img.shields.io/badge/C%2B%2B-17-blue.svg)](https://en.cppreference.com/w/cpp/17)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](#license)
+
 A multi-service distributed system that demonstrates production patterns end-to-end: an API gateway, an async Python worker, a Python storage service, a C++17 compute worker, and a chaos-engineering fault-injector — all wired together with Docker Compose, polled by Python automation scripts that detect failures and restart services automatically. Inter-service communication is async HTTP only; every service emits structured JSON logs and exposes uniform `/health` and `/metrics` endpoints. The orchestrator, recovery loop, log aggregator, and metrics collector together form a small but realistic ops control plane on top of the running stack.
 
 ## Architecture
