@@ -1,0 +1,48 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.mypy_cache/
+.ruff_cache/
+
+# --- Virtual environments ---
+.venv/
+venv/
+env/
+ENV/
+
+# --- Editor/OS ---
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# --- Project artefacts ---
+logs/
+metrics/
+*.log
+*.pid
+
+# --- C++ build artefacts ---
+services/cpp-worker/build/
+services/cpp-worker/cmake-build-*/
+# clangd index + any compile_commands.json symlinks devs create locally
+.cache/
+services/cpp-worker/.cache/
+services/cpp-worker/compile_commands.json
+compile_commands.json
+
+# --- Env files (commit .env.example only) ---
+.env
+.env.local

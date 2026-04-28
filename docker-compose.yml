@@ -1,0 +1,142 @@
+# Cloud Microservices Architecture & Integration Framework
+# Single source of truth for the local environment.
+#
+# All services share one user-defined bridge network (`mesh`) so they can
+# reach each other by container name (e.g. http://service-b:8002).
+# Each service mounts the docker socket only on the fault-injector, which
+# is the one component allowed to control container lifecycle for chaos
+# demos. The orchestrator/recovery scripts are run from the host (or from
+# their own ad-hoc container) and use the docker CLI directly.
+
+name: cloud-microservices
+
+services:
+  api-gateway:
+    build:
+      context: .
+      dockerfile: services/api-gateway/Dockerfile
+    container_name: cm-api-gateway
+    environment:
+      - SERVICE_NAME=api-gateway
+      - SERVICE_PORT=${API_GATEWAY_PORT}
+      - SERVICE_A_URL=http://${SERVICE_A_HOST}:${SERVICE_A_PORT}
+      - SERVICE_B_URL=http://${SERVICE_B_HOST}:${SERVICE_B_PORT}
+      - CPP_WORKER_URL=http://${CPP_WORKER_HOST}:${CPP_WORKER_PORT}
+      - LOG_LEVEL=${LOG_LEVEL}
+    ports:
+      - "${API_GATEWAY_PORT}:${API_GATEWAY_PORT}"
+    networks:
+      - mesh
+    depends_on:
+      service-a:
+        condition: service_healthy
+      service-b:
+        condition: service_healthy
+      cpp-worker:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen(f'http://localhost:${API_GATEWAY_PORT}/health', timeout=2).status == 200 else sys.exit(1)"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  service-a:
+    build:
+      context: .
+      dockerfile: services/service-a/Dockerfile
+    container_name: cm-service-a
+    environment:
+      - SERVICE_NAME=service-a
+      - SERVICE_PORT=${SERVICE_A_PORT}
+      - SERVICE_B_URL=http://${SERVICE_B_HOST}:${SERVICE_B_PORT}
+      - CPP_WORKER_URL=http://${CPP_WORKER_HOST}:${CPP_WORKER_PORT}
+      - LOG_LEVEL=${LOG_LEVEL}
+    ports:
+      - "${SERVICE_A_PORT}:${SERVICE_A_PORT}"
+    networks:
+      - mesh
+    depends_on:
+      service-b:
+        condition: service_healthy
+      cpp-worker:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen(f'http://localhost:${SERVICE_A_PORT}/health', timeout=2).status == 200 else sys.exit(1)"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  service-b:
+    build:
+      context: .
+      dockerfile: services/service-b/Dockerfile
+    container_name: cm-service-b
+    environment:
+      - SERVICE_NAME=service-b
+      - SERVICE_PORT=${SERVICE_B_PORT}
+      - LOG_LEVEL=${LOG_LEVEL}
+    ports:
+      - "${SERVICE_B_PORT}:${SERVICE_B_PORT}"
+    networks:
+      - mesh
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen(f'http://localhost:${SERVICE_B_PORT}/health', timeout=2).status == 200 else sys.exit(1)"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  cpp-worker:
+    build:
+      context: ./services/cpp-worker
+      dockerfile: Dockerfile
+    container_name: cm-cpp-worker
+    environment:
+      - SERVICE_NAME=cpp-worker
+      - SERVICE_PORT=${CPP_WORKER_PORT}
+    ports:
+      - "${CPP_WORKER_PORT}:${CPP_WORKER_PORT}"
+    networks:
+      - mesh
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:${CPP_WORKER_PORT}/health || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  fault-injector:
+    build:
+      context: .
+      dockerfile: services/fault-injector/Dockerfile
+    container_name: cm-fault-injector
+    environment:
+      - SERVICE_NAME=fault-injector
+      - SERVICE_PORT=${FAULT_INJECTOR_PORT}
+      - LOG_LEVEL=${LOG_LEVEL}
+    ports:
+      - "${FAULT_INJECTOR_PORT}:${FAULT_INJECTOR_PORT}"
+    networks:
+      - mesh
+    # The fault-injector is the one service allowed to drive the docker
+    # daemon: it stops/starts target containers as part of chaos demos.
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen(f'http://localhost:${FAULT_INJECTOR_PORT}/health', timeout=2).status == 200 else sys.exit(1)"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+networks:
+  mesh:
+    name: cm-mesh
+    driver: bridge

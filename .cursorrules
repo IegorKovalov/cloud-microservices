@@ -1,0 +1,172 @@
+# Cloud Microservices Architecture & Integration Framework
+# Cursor Project Rules — Junior SW Engineer Portfolio Project
+
+## Project Overview
+
+This is a portfolio project targeting Junior Software Engineer roles.
+It demonstrates a multi-service distributed system using Python, Docker, REST APIs, Linux, and C++.
+The goal is to simulate a real-world production environment that showcases:
+- Distributed systems design
+- Python automation & orchestration
+- Fault injection and recovery
+- Observability (logging + metrics)
+- Concurrent processing patterns
+
+All code must be clean, well-documented, and GitHub-ready. Every module should read like it was written by an engineer who cares about craft.
+
+---
+
+## Project Structure
+
+```
+cloud-microservices-framework/
+├── .cursorrules
+├── README.md
+├── docker-compose.yml
+├── Makefile
+├── services/
+│   ├── api-gateway/          # Python (FastAPI) — entry point, routes requests
+│   ├── service-a/            # Python — e.g. data processing worker
+│   ├── service-b/            # Python — e.g. storage/state service
+│   ├── cpp-worker/           # C++ — high-performance computation module
+│   └── fault-injector/       # Python — chaos/fault injection utility
+├── orchestration/
+│   ├── orchestrator.py       # Main automation script — starts, monitors, tears down
+│   ├── health_check.py       # Polls services for liveness
+│   └── recovery.py           # Detects and handles service failures
+├── monitoring/
+│   ├── log_aggregator.py     # Collects and parses logs from all containers
+│   └── metrics_collector.py  # Gathers CPU, latency, error rate per service
+├── shared/
+│   ├── models.py             # Shared Pydantic models / dataclasses
+│   └── utils.py              # Shared helpers (retry logic, backoff, etc.)
+├── tests/
+│   ├── integration/          # End-to-end service tests
+│   └── unit/                 # Unit tests per module
+└── docs/
+    ├── architecture.md       # System design + diagrams
+    └── runbook.md            # How to run, test, and extend
+```
+
+---
+
+## Technology Constraints
+
+- **Python**: 3.11+. Use `asyncio` for async work. Use `httpx` for async HTTP calls (not `requests`).
+- **Docker**: All services run in Docker containers. `docker-compose.yml` is the single source of truth for the environment.
+- **REST APIs**: Use FastAPI for Python services. Each service exposes `/health`, `/metrics`, and domain endpoints.
+- **C++**: Use C++17. The `cpp-worker` compiles inside its Docker container. Expose it via a minimal HTTP server (use cpp-httplib or a Python subprocess bridge).
+- **Logging**: Use Python `structlog` for structured JSON logs. Every log line must include `service`, `timestamp`, `level`, and a `message`.
+- **Testing**: Use `pytest` + `pytest-asyncio`. Aim for coverage on all orchestration and recovery logic.
+
+---
+
+## Code Style
+
+### Python
+- Follow PEP 8 strictly.
+- Use type hints on every function signature — parameters and return types.
+- Use `dataclasses` or `pydantic.BaseModel` for data structures, not plain dicts.
+- Use `async/await` for any I/O (HTTP calls, file reads, subprocess waits).
+- Prefer explicit error handling: always catch specific exceptions, not bare `except:`.
+- Use `pathlib.Path` instead of `os.path`.
+- Keep functions short and single-purpose. If a function is longer than 30 lines, split it.
+- Every module-level file must have a docstring explaining what it does.
+- Every public function must have a docstring with Args, Returns, and Raises sections.
+
+### C++
+- Follow Google C++ Style Guide.
+- Use `std::optional`, `std::variant`, and smart pointers (`std::unique_ptr`, `std::shared_ptr`).
+- No raw `new` / `delete` — use RAII.
+- Use `std::thread` or `std::async` for concurrency. Protect shared state with `std::mutex`.
+- All public functions must have Doxygen-style comments.
+- Compile with `-Wall -Wextra -Werror` — zero compiler warnings allowed.
+
+### Docker / Shell
+- Every `Dockerfile` uses multi-stage builds where applicable (build stage + runtime stage).
+- Pin base image versions (e.g. `python:3.11-slim`, not `python:latest`).
+- `docker-compose.yml` defines health checks for every service.
+- The `Makefile` provides: `make up`, `make down`, `make test`, `make logs`, `make fault-inject`.
+
+---
+
+## Architecture Principles
+
+1. **Services are independent**: No service imports code from another. Communication is HTTP only.
+2. **Fail fast, recover automatically**: Services crash on unrecoverable errors. The orchestrator detects the crash and restarts them. This is intentional and demonstrable.
+3. **Every failure is logged**: Any exception, timeout, or anomaly must produce a structured log entry before the process exits or retries.
+4. **Health checks are mandatory**: Every service exposes `GET /health → {"status": "ok", "service": "<name>"}`. The orchestrator polls these on startup and periodically.
+5. **Metrics are observable**: Every service exposes `GET /metrics` with basic stats: request count, error count, avg latency (ms). The metrics collector scrapes these and writes to a local JSON file.
+
+---
+
+## Fault Injection & Recovery
+
+The `fault-injector` service is a control plane that can:
+- Kill a target service container (`docker stop`)
+- Introduce artificial latency in service responses (via a proxy or sleep injection)
+- Return deliberate 500 errors from a service endpoint
+
+The `recovery.py` script in `orchestration/`:
+- Polls all service `/health` endpoints every N seconds
+- Detects when a service is down (3 consecutive failed health checks)
+- Triggers `docker start` or `docker-compose restart` on the failed service
+- Logs the recovery event with timestamps and duration
+
+Demonstrate this in the README with a step-by-step walkthrough: "Start the system → inject a fault → observe recovery."
+
+---
+
+## Concurrency Patterns
+
+The `service-a` worker must demonstrate at least one of:
+- `asyncio.gather()` for parallel async HTTP fan-out to `service-b`
+- `concurrent.futures.ThreadPoolExecutor` for parallel I/O tasks
+- A task queue pattern (simple in-memory `asyncio.Queue`)
+
+The `cpp-worker` must demonstrate:
+- A thread pool processing work items concurrently
+- A mutex-protected shared counter or accumulator
+
+---
+
+## GitHub & Documentation
+
+- Commit messages follow Conventional Commits: `feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`.
+- `README.md` must include:
+  - Project summary (3–5 sentences, CV-aligned)
+  - Architecture diagram (ASCII or Mermaid)
+  - Prerequisites (Docker, Docker Compose, Python 3.11+, g++)
+  - Quick start: `git clone → make up → curl localhost:8000/health`
+  - Demo: fault injection walkthrough
+  - Key design decisions (2–3 bullet points on what you learned / why you chose this approach)
+- `docs/architecture.md` contains a full system diagram and describes each service's responsibility.
+- `docs/runbook.md` explains how to run tests, inject faults, and extend with a new service.
+
+---
+
+## What NOT to Do
+
+- Do not use `Flask` for new services — use `FastAPI`.
+- Do not use `requests` for async code — use `httpx`.
+- Do not use Docker volumes to share code between services — each service is self-contained.
+- Do not hardcode ports, hostnames, or config — use environment variables with `.env` defaults.
+- Do not leave TODOs in committed code — either implement it or create a GitHub Issue.
+- Do not use `print()` for logging — use `structlog`.
+
+---
+
+## CV Alignment Reminders
+
+When naming things, writing docstrings, and README descriptions, use language that maps to the CV bullet points:
+
+| CV Bullet | Code to Back It Up |
+|---|---|
+| "multi-service distributed system using Docker" | docker-compose with 4+ networked services |
+| "Python automation scripts for orchestration" | `orchestrator.py` with health polling + lifecycle management |
+| "inter-service communication" | async HTTP calls between services via REST |
+| "fault injection and recovery mechanisms" | `fault-injector` + `recovery.py` with observable restart |
+| "system logs and performance metrics" | `log_aggregator.py` + `metrics_collector.py` |
+| "concurrent processing patterns" | asyncio.gather or ThreadPoolExecutor + C++ thread pool |
+
+Every feature you build should be something you can explain confidently in an interview.

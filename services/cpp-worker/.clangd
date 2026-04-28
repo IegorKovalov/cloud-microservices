@@ -1,0 +1,12 @@
+# clangd configuration for the cpp-worker service.
+#
+# Points the language server at the compile_commands.json that CMake
+# emits into ./build (run `make cpp-prep` from the repo root to
+# generate it). After that, clangd resolves <httplib.h> and
+# <nlohmann/json.hpp> exactly the way the Docker build does.
+CompileFlags:
+  CompilationDatabase: build
+  Add:
+    - -std=c++17
+    - -Wall
+    - -Wextra
