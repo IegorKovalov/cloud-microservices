@@ -22,7 +22,10 @@ PIP ?= $(PYTHON) -m pip
 COMPOSE ?= docker compose
 
 # Load .env so host-side make targets see the same ports as docker-compose.
-include .env
+# Optional include: missing on a fresh checkout / in CI, where the file
+# is gitignored. Targets that genuinely need .env (like `make health`)
+# still work because docker-compose loads .env independently.
+-include .env
 export
 
 .DEFAULT_GOAL := help
